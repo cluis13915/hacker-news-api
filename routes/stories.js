@@ -2,16 +2,17 @@ var express = require('express');
 var router = express.Router();
 
 router.get('/', async function(req, res, next) {
-  const page = parseInt(req.query.page) || 0;
+  const page = parseInt(req.query.page) || 1;
   const size = parseInt(req.query.size) || 10;
-  const offset = page * size;
+  const offset = (page - 1) * size;
 
   const collection = req.db.collection('stories');
-  const data = await collection.find({}).limit(size).skip(offset).toArray();
+  const count = await collection.count({});
+  let data = await collection.find({}).limit(size).skip(offset).toArray();
 
-  const response = data.map(({ _id, by, time, title, url }) => ({ _id, by, time, title, url }))
+  data = data.map(({ _id, by, time, title, url }) => ({ _id, by, time, title, url }))
 
-  res.json(response);
+  res.json({ data, count, page, size});
 });
 
 module.exports = router;
