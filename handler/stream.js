@@ -1,3 +1,7 @@
+// References:
+//  - https://hnstream.com/
+//  - https://www.mongodb.com/developer/how-to/capturing-hacker-news-mentions-nodejs-mongodb/
+
 const stream = require('stream');
 const ndjson = require('ndjson');
 const through2 = require('through2');
@@ -15,7 +19,7 @@ const { MongoClient } = require('mongodb');
     const collection = client.db('hacker-news').collection('stories');
 
     await pipeline(
-      request('http://api.hnstream.com/comments/stream/'),
+      request('http://api.hnstream.com/news/stream/'),
 
       ndjson.parse({ strict: false }),
 
