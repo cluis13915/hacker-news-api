@@ -1,6 +1,6 @@
-var WebSocketClient = require('websocket').client;
+const WebSocketClient = require('websocket').client;
 
-var client = new WebSocketClient();
+const client = new WebSocketClient();
 
 client.on('connectFailed', function(error) {
   console.log('Connect Error: ' + error.toString());
@@ -19,13 +19,19 @@ client.on('connect', function(connection) {
 
   connection.on('message', function(message) {
     if (message.type === 'utf8') {
-      console.log("Received: '" + message.utf8Data + "'");
+      try {
+        const data = JSON.parse(message.utf8Data);
+        console.log('Data received:');
+        console.log(data);
+      } catch (error) {
+        console.log('Not JSON data received:', message.utf8Data);
+      }
     }
   });
 
   function sendNumber() {
     if (connection.connected) {
-      var number = Math.round(Math.random() * 0xFFFFFF);
+      const number = Math.round(Math.random() * 0xFFFFFF);
 
       connection.sendUTF(number.toString());
 

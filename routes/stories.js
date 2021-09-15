@@ -1,5 +1,6 @@
-var express = require('express');
-var router = express.Router();
+const express = require('express');
+const router = express.Router();
+const serializer = require('../data/serializer');
 
 router.get('/', async function(req, res, next) {
   const page = parseInt(req.query.page) || 1;
@@ -10,9 +11,9 @@ router.get('/', async function(req, res, next) {
   const count = await collection.count({});
   let data = await collection.find({}).limit(size).skip(offset).toArray();
 
-  data = data.map(({ _id, by, time, title, url }) => ({ _id, by, time, title, url }))
+  data = serializer.serializeArrayOfStories(data);
 
-  res.json({ data, count, page, size});
+  res.json({ data, count, page, size });
 });
 
 module.exports = router;

@@ -1,12 +1,15 @@
 const axios = require('axios');
-const getConnection = require('../utils/connector');
+const { MongoClient } = require('mongodb');
 
 const API = 'https://hacker-news.firebaseio.com/v0';
 const fetchCount = process.env.FETCH_COUNT || 50;
 
-async function fetchStories() {
-  const client = await getConnection();
-  const collection = client.db('hacker-news').collection('stories');
+async function fetchStories(conn) {
+  if (!(conn instanceof MongoClient)) {
+    throw Error('An instance of MongoClient required.');
+  }
+
+  const collection = conn.db('hacker-news').collection('stories');
 
   console.log('Fetching top stories IDs...');
   const ids = await axios.get(`${API}/topstories.json`);
