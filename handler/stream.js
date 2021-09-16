@@ -8,14 +8,11 @@ const through2 = require('through2');
 const request = require('request');
 const util = require('util');
 const pipeline = util.promisify(stream.pipeline);
-const { MongoClient } = require('mongodb');
+const getConnection = require('../utils/connector');
 
 (async () => {
-  const client = new MongoClient('mongodb://localhost:27017', { useUnifiedTopology: true });
-
   try {
-    await client.connect();
-
+    const client = await getConnection();
     const collection = client.db('hacker-news').collection('stories');
 
     await pipeline(

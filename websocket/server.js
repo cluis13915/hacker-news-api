@@ -3,13 +3,13 @@ const http = require('http');
 const getConnection = require('../utils/connector');
 const fetchStories = require('../handler/topstories');
 const store = require('../data/stories');
-const serializer = require('../data/serializer');
 
 const fetchInterval = (process.env.FETCH_INTERVAL || 0.25) * 60 * 1000;
 
 (async () => {
   const dbConnection = await getConnection();
   let dataUpdated = false;
+  let sendingData = false;
 
   const server = http.createServer(function(request, response) {
     console.log((new Date()) + ' Received request for ' + request.url);
@@ -44,7 +44,6 @@ const fetchInterval = (process.env.FETCH_INTERVAL || 0.25) * 60 * 1000;
     dataUpdated = true;
   }, fetchInterval);
 
-
   wsServer.on('request', async function(request) {
     if (!originIsAllowed(request.origin)) {
       // Make sure we only accept requests from an allowed origin
@@ -56,12 +55,18 @@ const fetchInterval = (process.env.FETCH_INTERVAL || 0.25) * 60 * 1000;
     const connection = request.accept('echo-protocol', request.origin);
     console.log((new Date()) + ' Connection accepted.');
 
+    const sendData = async () => {
+      sendingData = true;
+      const data = await store.getAllStories(dbConnection);
+
+      connection.sendUTF(JSON.stringify(data));
+      sendingData = false;
+    };
+
+    sendData();
     setInterval(async () => {
-      if (dataUpdated) {
-        const data = await store.getAllStories(dbConnection);
-
-        connection.sendUTF(JSON.stringify(data));
-
+      if (dataUpdated && !sendingData) {
+        await sendData();
         dataUpdated = false;
       }
     }, 1000)
@@ -73,7 +78,7 @@ const fetchInterval = (process.env.FETCH_INTERVAL || 0.25) * 60 * 1000;
       }
       else if (message.type === 'binary') {
         console.log('Received Binary Message of ' + message.binaryData.length + ' bytes');
-        connection.sendBytes('Invaqlid data received');
+        connection.sendBytes('Invalid data received');
       }
     });
 
@@ -81,5 +86,4 @@ const fetchInterval = (process.env.FETCH_INTERVAL || 0.25) * 60 * 1000;
       console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
     });
   });
-
 })();
