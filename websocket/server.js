@@ -8,8 +8,7 @@ const fetchInterval = (process.env.FETCH_INTERVAL || 0.25) * 60 * 1000;
 
 (async () => {
   const dbConnection = await getConnection();
-  let dataUpdated = false;
-  let sendingData = false;
+  let liveConnections = [];
 
   const server = http.createServer(function(request, response) {
     console.log((new Date()) + ' Received request for ' + request.url);
@@ -32,21 +31,36 @@ const fetchInterval = (process.env.FETCH_INTERVAL || 0.25) * 60 * 1000;
   });
 
   function originIsAllowed(origin) {
-    // put logic here to detect whether the specified origin is allowed.
+    // Put logic here to detect whether the specified origin is allowed.
     return true;
   }
 
-  // Fetch stories each certain interval
-  fetchStories(dbConnection);
-  setInterval(async () => {
-    await fetchStories(dbConnection);
+  async function sendLatestData(conn) {
+    const data = await store.getAllStories(dbConnection);
 
-    dataUpdated = true;
-  }, fetchInterval);
+    if (conn) {
+      return conn.sendUTF(JSON.stringify(data));
+    }
+
+    liveConnections
+      .filter(conn => conn.connected)
+      .forEach(conn => conn.sendUTF(JSON.stringify(data)));
+  }
+
+  async function fetchAndSendLatestData(conn) {
+    await fetchStories(dbConnection);
+    await sendLatestData(conn);
+  }
+
+  // Fetch data at startup.
+  await fetchStories(dbConnection);
+
+  // Fetch stories each certain interval and send to connected clients.
+  setInterval(fetchAndSendLatestData, fetchInterval);
 
   wsServer.on('request', async function(request) {
     if (!originIsAllowed(request.origin)) {
-      // Make sure we only accept requests from an allowed origin
+      // Make sure we only accept requests from an allowed origin.
       request.reject();
       console.log((new Date()) + ' Connection from origin ' + request.origin + ' rejected.');
       return;
@@ -54,22 +68,6 @@ const fetchInterval = (process.env.FETCH_INTERVAL || 0.25) * 60 * 1000;
 
     const connection = request.accept('echo-protocol', request.origin);
     console.log((new Date()) + ' Connection accepted.');
-
-    const sendData = async () => {
-      sendingData = true;
-      const data = await store.getAllStories(dbConnection);
-
-      connection.sendUTF(JSON.stringify(data));
-      sendingData = false;
-    };
-
-    sendData();
-    setInterval(async () => {
-      if (dataUpdated && !sendingData) {
-        await sendData();
-        dataUpdated = false;
-      }
-    }, 1000)
 
     connection.on('message', function(message) {
       if (message.type === 'utf8') {
@@ -84,6 +82,17 @@ const fetchInterval = (process.env.FETCH_INTERVAL || 0.25) * 60 * 1000;
 
     connection.on('close', function(reasonCode, description) {
       console.log((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
+
+      const index = liveConnections.findIndex((conn) => conn === connection);
+
+      if (index !== -1) {
+        liveConnections.splice(index);
+      }
     });
+
+    liveConnections.push(connection);
+
+    // Send current data to the connected client.
+    await sendLatestData(connection);
   });
 })();
